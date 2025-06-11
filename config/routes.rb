@@ -12,6 +12,11 @@ Rails.application.routes.draw do
   # Defines the root path route ("/")
   # root "posts#index"
 
+  namespace :auth do
+    post "register", to: "auth#register"
+    post "login", to: "auth#login"
+  end
+
   namespace :api, defaults: { format: :json } do
     resources :movies
   end

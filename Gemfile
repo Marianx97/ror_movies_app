@@ -43,6 +43,8 @@ group :development, :test do
   gem "factory_bot_rails"
 
   gem "shoulda-matchers", "~> 6.0"
+
+  gem "jwt"
 end
 
 group :development do

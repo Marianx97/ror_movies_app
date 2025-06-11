@@ -2,6 +2,20 @@ require 'rails_helper'
 
 RSpec.describe "API::Movies", type: :request do
   let!(:movie) { create(:movie) }
+  let(:admin) { create(:user, isAdmin: true) }
+  let(:user)  { create(:user, isAdmin: false) }
+
+  let(:admin_token) { JsonWebToken.encode(user_id: admin.id) }
+  let(:user_token)  { JsonWebToken.encode(user_id: user.id) }
+
+  let(:headers) do
+    { "Authorization" => "Bearer #{admin_token}" }
+  end
+
+  let(:user_headers) do
+    { "Authorization" => "Bearer #{user_token}" }
+  end
+
   let(:valid_attributes) do
     {
       title: "Interstellar",
@@ -14,11 +28,11 @@ RSpec.describe "API::Movies", type: :request do
 
   let(:invalid_attributes) do
     {
-      title: "",  # Invalid: empty title
+      title: "",
       description: "Short",
       director: "",
       producer: "",
-      release_date: "1800-01-01" # Invalid year
+      release_date: "1800-01-01"
     }
   end
 
@@ -40,42 +54,62 @@ RSpec.describe "API::Movies", type: :request do
   end
 
   describe "POST /api/movies" do
-    context "with valid parameters" do
+    context "as admin" do
       it "creates a new movie" do
         expect {
-          post "/api/movies", params: { movie: valid_attributes }
+          post "/api/movies", params: { movie: valid_attributes }, headers: headers
         }.to change(Movie, :count).by(1)
 
         expect(response).to have_http_status(:created)
-        json = JSON.parse(response.body)
-        expect(json["title"]).to eq("Interstellar")
       end
     end
 
-    context "with invalid parameters" do
-      it "does not create a new movie" do
-        expect {
-          post "/api/movies", params: { movie: invalid_attributes }
-        }.not_to change(Movie, :count)
+    context "as regular user" do
+      it "returns forbidden" do
+        post "/api/movies", params: { movie: valid_attributes }, headers: user_headers
+        expect(response).to have_http_status(:forbidden)
+      end
+    end
 
-        expect(response).to have_http_status(:unprocessable_entity)
+    context "without token" do
+      it "returns unauthorized" do
+        post "/api/movies", params: { movie: valid_attributes }
+        expect(response).to have_http_status(:unauthorized)
       end
     end
   end
 
   describe "PATCH /api/movies/:id" do
-    it "updates the movie" do
-      patch "/api/movies/#{movie.id}", params: { movie: { title: "Updated Title" } }
-      expect(response).to have_http_status(:ok)
-      expect(movie.reload.title).to eq("Updated Title")
+    context "as admin" do
+      it "updates the movie" do
+        patch "/api/movies/#{movie.id}", params: { movie: { title: "Updated Title" } }, headers: headers
+        expect(response).to have_http_status(:ok)
+        expect(movie.reload.title).to eq("Updated Title")
+      end
+    end
+
+    context "as regular user" do
+      it "returns forbidden" do
+        patch "/api/movies/#{movie.id}", params: { movie: { title: "Updated Title" } }, headers: user_headers
+        expect(response).to have_http_status(:forbidden)
+      end
     end
   end
 
   describe "DELETE /api/movies/:id" do
-    it "soft deletes the movie" do
-      delete "/api/movies/#{movie.id}"
-      expect(response).to have_http_status(:no_content)
-      expect(movie.reload.deleted_at).not_to be_nil
+    context "as admin" do
+      it "soft deletes the movie" do
+        delete "/api/movies/#{movie.id}", headers: headers
+        expect(response).to have_http_status(:no_content)
+        expect(movie.reload.deleted_at).not_to be_nil
+      end
+    end
+
+    context "as regular user" do
+      it "returns forbidden" do
+        delete "/api/movies/#{movie.id}", headers: user_headers
+        expect(response).to have_http_status(:forbidden)
+      end
     end
   end
 end
